@@ -8,6 +8,13 @@ All notable project changes are documented here.
 
 - GitHub Actions workflow to validate version tags and publish GitHub releases.
 
+## [1.8.0] - 2026-10-11
+
+### Changed
+
+- Preserve each target's pre-transfer visible world position while applying the
+  source's origin and transform.
+
 ## [1.7.0] - 2026-10-11
 
 ### Added

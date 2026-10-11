@@ -3,16 +3,16 @@
 bl_info = {
     "name": "Object Transform Transfer",
     "author": "BRD-Tools",
-    "version": (1, 7, 0),
+    "version": (1, 8, 0),
     "blender": (3, 6, 0),
     "location": "View3D > Sidebar > Transfer",
-    "description": "Align selected objects to the active object's bounds, delete it, and update automatically",
+    "description": "Transfer the active object's transform while preserving target appearance",
     "category": "Object",
 }
 
 import ast
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Matrix
 import io
 import json
 import logging
@@ -35,30 +35,29 @@ _LOGGER = logging.getLogger(__name__)
 _addon_keymaps = []
 
 
-def _bounding_box_center(obj):
-    corners = [Vector(corner) for corner in obj.bound_box]
-    center = Vector((0.0, 0.0, 0.0))
-    for corner in corners:
-        center += corner
-    return center / len(corners)
+def _matrix_is_identity(matrix):
+    return all(
+        abs(matrix[row][column] - (1.0 if row == column else 0.0)) <= 1e-8
+        for row in range(4)
+        for column in range(4)
+    )
 
 
-def _offset_object_data(obj, local_offset):
-    if obj.data is None or local_offset.length_squared <= 1e-12:
+def _transform_object_data(obj, local_transform):
+    if obj.data is None or _matrix_is_identity(local_transform):
         return obj.data
 
     transform = getattr(obj.data, "transform", None)
     if not callable(transform):
         raise ValueError(
-            f"Cannot compensate for the origin offset on target '{obj.name}'"
+            f"Cannot preserve the visible position of target '{obj.name}'"
         )
 
     data = obj.data.copy()
-    translation = Matrix.Translation(local_offset)
     if obj.type == "MESH":
-        data.transform(translation, shape_keys=True)
+        data.transform(local_transform, shape_keys=True)
     else:
-        data.transform(translation)
+        data.transform(local_transform)
     return data
 
 
@@ -185,7 +184,7 @@ def _check_for_update():
 
 
 class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
-    """Align selected objects' bounding-box centers to the active object, then delete it"""
+    """Apply the active object's transform while preserving target geometry positions"""
 
     bl_idname = "object.transfer_transform_delete_source"
     bl_label = "Transfer Transform & Delete Source"
@@ -227,12 +226,20 @@ class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
             return {"CANCELLED"}
 
         source_matrix = source.matrix_world.copy()
-        source_center = _bounding_box_center(source)
+        try:
+            source_inverse = source_matrix.inverted()
+        except ValueError:
+            self.report(
+                {"ERROR"},
+                "Cannot preserve target geometry with a singular source transform (zero scale)",
+            )
+            return {"CANCELLED"}
+
         target_updates = []
         for target in targets:
-            local_offset = source_center - _bounding_box_center(target)
+            local_transform = source_inverse @ target.matrix_world.copy()
             try:
-                target_data = _offset_object_data(target, local_offset)
+                target_data = _transform_object_data(target, local_transform)
             except (AttributeError, TypeError, ValueError) as error:
                 self.report({"ERROR"}, str(error))
                 return {"CANCELLED"}
@@ -283,7 +290,7 @@ class VIEW3D_PT_object_transform_transfer(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         layout.label(text="Active object is the source.")
-        layout.label(text="Align visible bounds, then delete source.")
+        layout.label(text="Preserve target geometry; apply source transform.")
         layout.operator(OBJECT_OT_transfer_transform_delete_source.bl_idname)
         pie_button = layout.operator(
             "wm.call_menu_pie",
