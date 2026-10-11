@@ -8,13 +8,20 @@ All notable project changes are documented here.
 
 - GitHub Actions workflow to validate version tags and publish GitHub releases.
 
+## [1.15.0] - 2026-10-11
+
+### Changed
+
+- Use the object one level above the active source wheel's parent as the Copy
+  Transforms Target, rather than the intermediate `.mesh` object.
+- Clear the Bone/Subtarget and use World spaces for that hierarchy target.
+
 ## [1.14.0] - 2026-10-11
 
 ### Changed
 
 - Use the active source wheel's parent as the receiving wheel's Copy Transforms
-  Target; use its parent bone as Subtarget when it is bone-parented.
-- Configure object-parented and bone-parented targets in their matching spaces.
+  Target.
 - Keep the active source wheel in the scene for this wheel-target workflow.
 
 ## [1.13.0] - 2026-10-11

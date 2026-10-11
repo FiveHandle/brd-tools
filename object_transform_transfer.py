@@ -3,7 +3,7 @@
 bl_info = {
     "name": "Object Transform Transfer",
     "author": "BRD-Tools",
-    "version": (1, 14, 0),
+    "version": (1, 15, 0),
     "blender": (3, 6, 0),
     "location": "View3D > Sidebar > Transfer",
     "description": "Transfer transforms, align geometry centers, and retarget Copy Transforms constraints",
@@ -103,29 +103,22 @@ def _receiver_copy_transforms_wheel_constraints(receiver):
     return constraints
 
 
-def _source_parent_constraint_target(source):
+def _source_hierarchy_constraint_target(source):
     parent = source.parent
     if parent is None:
         raise ValueError(
-            "The active source wheel has no parent; parent it to its rig or "
-            "vehicle object before transferring"
+            "The active source wheel has no parent; it needs a parent hierarchy "
+            "to determine the wheel Target"
         )
 
-    if source.parent_type == "BONE":
-        subtarget = source.parent_bone
-        if parent.type != "ARMATURE" or not subtarget:
-            raise ValueError(
-                "The active source wheel has an invalid bone parent; "
-                "check its parent armature and bone"
-            )
-        if parent.data.bones.get(subtarget) is None:
-            raise ValueError(
-                f"The active source wheel's parent bone '{subtarget}' does not "
-                f"exist in armature '{parent.name}'"
-            )
-        return parent, subtarget, "POSE", "LOCAL"
+    target = parent.parent
+    if target is None:
+        raise ValueError(
+            f"The active source wheel's parent '{parent.name}' has no parent "
+            "above it in the hierarchy"
+        )
 
-    return parent, "", "WORLD", "WORLD"
+    return target, "", "WORLD", "WORLD"
 
 
 def _extract_version(source):
@@ -309,7 +302,7 @@ class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
         wheel_target = None
         if preserve_source:
             try:
-                wheel_target = _source_parent_constraint_target(source)
+                wheel_target = _source_hierarchy_constraint_target(source)
             except ValueError as error:
                 self.report({"ERROR"}, str(error))
                 return {"CANCELLED"}
@@ -319,8 +312,9 @@ class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
             ):
                 self.report(
                     {"ERROR"},
-                    "The source wheel's parent is also a receiver; targeting it "
-                    "would make the Copy Transforms constraint self-referential",
+                    "The source wheel's parent hierarchy target is also a receiver; "
+                    "targeting it would make the Copy Transforms constraint "
+                    "self-referential",
                 )
                 return {"CANCELLED"}
 
