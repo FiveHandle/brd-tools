@@ -8,6 +8,13 @@ All notable project changes are documented here.
 
 - GitHub Actions workflow to validate version tags and publish GitHub releases.
 
+## [1.7.0] - 2026-10-11
+
+### Added
+
+- Transfer radial menu, available in the 3D View with **Shift+Alt+T** or from
+  the Transfer sidebar.
+
 ## [1.6.0] - 2026-10-11
 
 ### Changed

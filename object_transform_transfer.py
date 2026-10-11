@@ -3,7 +3,7 @@
 bl_info = {
     "name": "Object Transform Transfer",
     "author": "BRD-Tools",
-    "version": (1, 6, 0),
+    "version": (1, 7, 0),
     "blender": (3, 6, 0),
     "location": "View3D > Sidebar > Transfer",
     "description": "Align selected objects to the active object's bounds, delete it, and update automatically",
@@ -32,6 +32,7 @@ _MAX_ARCHIVE_BYTES = 20 * 1024 * 1024
 _MAX_ADDON_BYTES = 2 * 1024 * 1024
 _UPDATE_STATUS = "Automatic update check has not run."
 _LOGGER = logging.getLogger(__name__)
+_addon_keymaps = []
 
 
 def _bounding_box_center(obj):
@@ -262,6 +263,16 @@ class OBJECT_OT_check_for_updates(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class VIEW3D_MT_object_transform_transfer_pie(bpy.types.Menu):
+    bl_label = "Object Transform Transfer"
+    bl_idname = "VIEW3D_MT_object_transform_transfer_pie"
+
+    def draw(self, context):
+        pie = self.layout.menu_pie()
+        pie.operator(OBJECT_OT_transfer_transform_delete_source.bl_idname)
+        pie.operator(OBJECT_OT_check_for_updates.bl_idname)
+
+
 class VIEW3D_PT_object_transform_transfer(bpy.types.Panel):
     bl_label = "Object Transform Transfer"
     bl_idname = "VIEW3D_PT_object_transform_transfer"
@@ -274,6 +285,12 @@ class VIEW3D_PT_object_transform_transfer(bpy.types.Panel):
         layout.label(text="Active object is the source.")
         layout.label(text="Align visible bounds, then delete source.")
         layout.operator(OBJECT_OT_transfer_transform_delete_source.bl_idname)
+        pie_button = layout.operator(
+            "wm.call_menu_pie",
+            text="Open Transfer Radial Menu",
+        )
+        pie_button.name = VIEW3D_MT_object_transform_transfer_pie.bl_idname
+        layout.label(text="Shortcut: Shift+Alt+T")
         layout.separator()
         layout.operator(
             OBJECT_OT_check_for_updates.bl_idname,
@@ -285,6 +302,7 @@ class VIEW3D_PT_object_transform_transfer(bpy.types.Panel):
 classes = (
     OBJECT_OT_transfer_transform_delete_source,
     OBJECT_OT_check_for_updates,
+    VIEW3D_MT_object_transform_transfer_pie,
     VIEW3D_PT_object_transform_transfer,
 )
 
@@ -292,12 +310,30 @@ classes = (
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
+    window_manager = bpy.context.window_manager
+    if window_manager and window_manager.keyconfigs.addon:
+        keymap = window_manager.keyconfigs.addon.keymaps.new(
+            name="3D View",
+            space_type="VIEW_3D",
+        )
+        keymap_item = keymap.keymap_items.new(
+            "wm.call_menu_pie",
+            type="T",
+            value="PRESS",
+            shift=True,
+            alt=True,
+        )
+        keymap_item.properties.name = VIEW3D_MT_object_transform_transfer_pie.bl_idname
+        _addon_keymaps.append((keymap, keymap_item))
     bpy.app.timers.register(_check_for_update, first_interval=10.0)
 
 
 def unregister():
     if bpy.app.timers.is_registered(_check_for_update):
         bpy.app.timers.unregister(_check_for_update)
+    for keymap, keymap_item in _addon_keymaps:
+        keymap.keymap_items.remove(keymap_item)
+    _addon_keymaps.clear()
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 

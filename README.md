@@ -19,6 +19,10 @@ source.
    **Transfer Transform & Delete Source**.
 4. Confirm the operation.
 
+You can also open the radial menu with **Shift+Alt+T** in the 3D View, or
+click **Open Transfer Radial Menu** in the sidebar. It contains the transfer
+action and **Check for Updates**.
+
 Each target receives the source's exact world transform, including its origin,
 location, rotation, and scale. The target's local geometry is offset as needed
 so its visible bounding-box center also aligns with the source. Geometry data
@@ -48,7 +52,7 @@ yet.
 GitHub Actions creates a release whenever a version tag is pushed:
 
 1. Update `bl_info["version"]` and add the release notes to `CHANGELOG.md`.
-2. Commit the changes and create a matching tag, such as `v1.6.0`.
+2. Commit the changes and create a matching tag, such as `v1.7.0`.
 3. Push the commit and tag to GitHub. The **Publish Release** workflow creates
    the GitHub release, which the add-on checks at startup.
 
