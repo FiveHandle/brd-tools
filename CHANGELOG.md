@@ -8,6 +8,13 @@ All notable project changes are documented here.
 
 - GitHub Actions workflow to validate version tags and publish GitHub releases.
 
+## [1.9.0] - 2026-10-11
+
+### Changed
+
+- Restored the v1.6.0 bounding-box-center alignment behavior while retaining
+  the radial menu.
+
 ## [1.8.0] - 2026-10-11
 
 ### Changed
