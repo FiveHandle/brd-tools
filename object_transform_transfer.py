@@ -3,7 +3,7 @@
 bl_info = {
     "name": "Object Transform Transfer",
     "author": "BRD-Tools",
-    "version": (1, 12, 0),
+    "version": (1, 13, 0),
     "blender": (3, 6, 0),
     "location": "View3D > Sidebar > Transfer",
     "description": "Transfer transforms, align geometry centers, and retarget Copy Transforms constraints",
@@ -84,38 +84,23 @@ def _copy_transforms_constraints_targeting(source):
     return matches
 
 
-def _receiver_copy_transforms_bone_constraints(receiver):
-    return [
+def _receiver_copy_transforms_wheel_constraints(receiver):
+    constraints = [
         constraint
         for constraint in receiver.constraints
         if constraint.type == "COPY_TRANSFORMS"
         and constraint.target is not None
         and constraint.target.type == "ARMATURE"
-        and constraint.subtarget
+        and constraint.subtarget.startswith("wheel_")
     ]
-
-
-def _receiver_copy_transforms_bone_target(receiver):
-    constraints = _receiver_copy_transforms_bone_constraints(receiver)
-    matches = [(constraint.target, constraint.subtarget) for constraint in constraints]
-    if not matches:
-        return None
-
-    target, subtarget = matches[0]
-    if any(
-        other_target != target or other_subtarget != subtarget
-        for other_target, other_subtarget in matches[1:]
-    ):
-        raise ValueError(
-            "The receiver has multiple Copy Transforms armature/bone targets; "
-            "make them consistent before transferring"
-        )
-    if target.data.bones.get(subtarget) is None:
-        raise ValueError(
-            f"The receiver's Copy Transforms bone '{subtarget}' does not exist "
-            f"in armature '{target.name}'"
-        )
-    return target, subtarget
+    for constraint in constraints:
+        if constraint.target.data.bones.get(constraint.subtarget) is None:
+            raise ValueError(
+                f"The receiver's Copy Transforms wheel bone "
+                f"'{constraint.subtarget}' does not exist in armature "
+                f"'{constraint.target.name}'"
+            )
+    return constraints
 
 
 def _extract_version(source):
@@ -244,7 +229,7 @@ class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
     """Copy the active transform and align target bounding-box centers, then delete the source"""
 
     bl_idname = "object.transfer_transform_delete_source"
-    bl_label = "Transfer Transform & Delete Source"
+    bl_label = "Transfer Transform"
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -282,28 +267,19 @@ class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
             )
             return {"CANCELLED"}
 
-        copy_constraints = _copy_transforms_constraints_targeting(source)
-        constraint_target = None
-        receiver_rig_updates = []
-        receiver_bone_targets = []
+        wheel_constraints = []
         for receiver in targets:
-            receiver_bone_constraints = (
-                _receiver_copy_transforms_bone_constraints(receiver)
-            )
-            if not receiver_bone_constraints:
-                continue
             try:
-                receiver_target = _receiver_copy_transforms_bone_target(receiver)
+                wheel_constraints.extend(
+                    _receiver_copy_transforms_wheel_constraints(receiver)
+                )
             except ValueError as error:
                 self.report({"ERROR"}, str(error))
                 return {"CANCELLED"}
-            receiver_bone_targets.append((receiver, receiver_target))
-            receiver_rig_updates.extend(
-                (constraint, receiver_target[0], receiver_target[1])
-                for constraint in receiver_bone_constraints
-            )
 
-        if copy_constraints:
+        preserve_source = bool(wheel_constraints)
+        copy_constraints = _copy_transforms_constraints_targeting(source)
+        if copy_constraints and not preserve_source:
             if len(targets) != 1:
                 self.report(
                     {"ERROR"},
@@ -312,21 +288,11 @@ class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
                 return {"CANCELLED"}
 
             receiver = targets[0]
-            constraint_target = next(
-                (
-                    target
-                    for target_receiver, target in receiver_bone_targets
-                    if target_receiver == receiver
-                ),
-                None,
-            )
-
-            target_object = constraint_target[0] if constraint_target else receiver
-            if any(owner == target_object for owner, _constraint in copy_constraints):
+            if any(owner == receiver for owner, _constraint in copy_constraints):
                 self.report(
                     {"ERROR"},
-                    "A Copy Transforms constraint owner is also the replacement "
-                    "target; retargeting it would make the constraint target itself",
+                    "The receiver has a Copy Transforms constraint targeting the "
+                    "source; retargeting it would make the constraint target itself",
                 )
                 return {"CANCELLED"}
 
@@ -360,34 +326,28 @@ class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
                 target.data = target_data
             target.matrix_world = source_matrix.copy()
 
-        for constraint, target, subtarget in receiver_rig_updates:
-            constraint.target = target
-            constraint.subtarget = subtarget
+        for constraint in wheel_constraints:
+            constraint.target = source
+            constraint.subtarget = ""
+            constraint.target_space = "WORLD"
+            constraint.owner_space = "WORLD"
 
-        if copy_constraints:
-            target_object = constraint_target[0] if constraint_target else targets[0]
+        if copy_constraints and not preserve_source:
             for _owner, constraint in copy_constraints:
-                constraint.target = target_object
-                if constraint_target:
-                    constraint.subtarget = constraint_target[1]
+                constraint.target = targets[0]
 
-        bpy.data.objects.remove(source, do_unlink=True)
-        if copy_constraints:
-            destination = (
-                f"armature bone '{constraint_target[1]}'"
-                if constraint_target
-                else "the receiving object"
-            )
+        if not preserve_source:
+            bpy.data.objects.remove(source, do_unlink=True)
+        elif wheel_constraints:
             self.report(
                 {"INFO"},
-                f"Retargeted {len(copy_constraints)} Copy Transforms constraint(s) "
-                f"to {destination}",
+                f"Retargeted {len(wheel_constraints)} wheel constraint(s) to "
+                "the source wheel mesh; source kept as the target",
             )
-        if receiver_rig_updates:
+        if copy_constraints and not preserve_source:
             self.report(
                 {"INFO"},
-                f"Kept {len(receiver_rig_updates)} receiving wheel constraint(s) "
-                "bound to their existing armature and bone",
+                f"Retargeted {len(copy_constraints)} Copy Transforms constraint(s)",
             )
         return {"FINISHED"}
 

@@ -8,6 +8,15 @@ All notable project changes are documented here.
 
 - GitHub Actions workflow to validate version tags and publish GitHub releases.
 
+## [1.13.0] - 2026-10-11
+
+### Changed
+
+- Retarget a receiving Sollumz wheel's Copy Transforms constraint to the active
+  source wheel mesh, clear its Bone/Subtarget, and keep the source in the scene
+  as the new target.
+- Continue deleting the source for ordinary transfers.
+
 ## [1.12.0] - 2026-10-11
 
 ### Changed

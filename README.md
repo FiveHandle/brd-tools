@@ -16,7 +16,7 @@ source.
 2. Make the source active (the last selected object, shown with the brighter
    outline).
 3. In the 3D View sidebar, open the **Transfer** tab and click
-   **Transfer Transform & Delete Source**.
+   **Transfer Transform**.
 4. Confirm the operation.
 
 You can also open the radial menu with **Shift+Alt+T** in the 3D View, or
@@ -32,12 +32,13 @@ Use Blender's Undo immediately afterward to reverse the operation.
 
 Any object or pose-bone **Copy Transforms** constraints elsewhere in the scene
 that target the deleted source are redirected to the single receiving object.
-For a Sollumz wheel receiver, its own Copy Transforms armature Target and bone
-Subtarget are preserved from that receiver's rig setup, and scene constraints
-being retargeted use the same armature/bone pair. This keeps the surviving
-wheel bound to the receiving car's rig. If scene constraints reference the
-source, select exactly one receiver. A replacement that would make a
-constraint target its own owner, or linked constraint owners, is rejected.
+For a Sollumz wheel receiver with a Copy Transforms constraint targeting a
+`wheel_` bone, the constraint instead targets the active source wheel mesh.
+Its Bone/Subtarget is cleared and its spaces are changed to World. The source
+wheel is kept in the scene as the target. Ordinary transfers continue to
+delete the source. If scene constraints reference a source being deleted,
+select exactly one receiver. A replacement that would make a constraint target
+its own owner, or linked constraint owners, is rejected.
 
 Linked objects that are not library overrides must be made local before they
 can be used as a source or target.
@@ -61,7 +62,7 @@ yet.
 GitHub Actions creates a release whenever a version tag is pushed:
 
 1. Update `bl_info["version"]` and add the release notes to `CHANGELOG.md`.
-2. Commit the changes and create a matching tag, such as `v1.12.0`.
+2. Commit the changes and create a matching tag, such as `v1.13.0`.
 3. Push the commit and tag to GitHub. The **Publish Release** workflow creates
    the GitHub release, which the add-on checks at startup.
 
