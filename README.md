@@ -1,8 +1,8 @@
 # Object Transform Transfer
 
-A Blender add-on that aligns the visible bounding-box centers of selected
-objects to the active source object's bounding-box center, then deletes the
-source.
+A Blender add-on that aligns selected objects to the active source object's
+transform and visible bounding-box center. Ordinary transfers delete the
+source; Sollumz wheel transfers retain it as needed and target its parent.
 
 ## Install
 
@@ -26,19 +26,20 @@ action and **Check for Updates**.
 Each target receives the source's exact world transform, including its origin,
 location, rotation, and scale. Target geometry is offset in local space so its
 visible bounding-box center aligns with the source's. Geometry data is copied
-before editing, so other objects sharing it remain unchanged. The source
-object is then deleted. Materials and other object data are not transferred.
-Use Blender's Undo immediately afterward to reverse the operation.
+before editing, so other objects sharing it remain unchanged. Materials and
+other object data are not transferred. Use Blender's Undo immediately afterward
+to reverse the operation.
 
 Any object or pose-bone **Copy Transforms** constraints elsewhere in the scene
 that target the deleted source are redirected to the single receiving object.
 For a Sollumz wheel receiver with a Copy Transforms constraint targeting a
-`wheel_` bone, the constraint instead targets the active source wheel mesh.
-Its Bone/Subtarget is cleared and its spaces are changed to World. The source
-wheel is kept in the scene as the target. Ordinary transfers continue to
-delete the source. If scene constraints reference a source being deleted,
-select exactly one receiver. A replacement that would make a constraint target
-its own owner, or linked constraint owners, is rejected.
+`wheel_` bone, the constraint targets the active source wheel's parent instead.
+If the source is bone-parented, the parent bone is used as the Subtarget.
+Object-parented targets use World spaces; bone-parented targets use Pose/Local
+spaces. The active source is kept in the scene for this wheel workflow.
+Ordinary transfers delete the source. If scene constraints reference a source
+being deleted, select exactly one receiver. A replacement that would make a
+constraint target its own owner, or linked constraint owners, is rejected.
 
 Linked objects that are not library overrides must be made local before they
 can be used as a source or target.
@@ -62,7 +63,7 @@ yet.
 GitHub Actions creates a release whenever a version tag is pushed:
 
 1. Update `bl_info["version"]` and add the release notes to `CHANGELOG.md`.
-2. Commit the changes and create a matching tag, such as `v1.13.0`.
+2. Commit the changes and create a matching tag, such as `v1.14.0`.
 3. Push the commit and tag to GitHub. The **Publish Release** workflow creates
    the GitHub release, which the add-on checks at startup.
 

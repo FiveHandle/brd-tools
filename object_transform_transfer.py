@@ -3,7 +3,7 @@
 bl_info = {
     "name": "Object Transform Transfer",
     "author": "BRD-Tools",
-    "version": (1, 13, 0),
+    "version": (1, 14, 0),
     "blender": (3, 6, 0),
     "location": "View3D > Sidebar > Transfer",
     "description": "Transfer transforms, align geometry centers, and retarget Copy Transforms constraints",
@@ -101,6 +101,31 @@ def _receiver_copy_transforms_wheel_constraints(receiver):
                 f"'{constraint.target.name}'"
             )
     return constraints
+
+
+def _source_parent_constraint_target(source):
+    parent = source.parent
+    if parent is None:
+        raise ValueError(
+            "The active source wheel has no parent; parent it to its rig or "
+            "vehicle object before transferring"
+        )
+
+    if source.parent_type == "BONE":
+        subtarget = source.parent_bone
+        if parent.type != "ARMATURE" or not subtarget:
+            raise ValueError(
+                "The active source wheel has an invalid bone parent; "
+                "check its parent armature and bone"
+            )
+        if parent.data.bones.get(subtarget) is None:
+            raise ValueError(
+                f"The active source wheel's parent bone '{subtarget}' does not "
+                f"exist in armature '{parent.name}'"
+            )
+        return parent, subtarget, "POSE", "LOCAL"
+
+    return parent, "", "WORLD", "WORLD"
 
 
 def _extract_version(source):
@@ -271,13 +296,34 @@ class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
         for receiver in targets:
             try:
                 wheel_constraints.extend(
-                    _receiver_copy_transforms_wheel_constraints(receiver)
+                    (receiver, constraint)
+                    for constraint in _receiver_copy_transforms_wheel_constraints(
+                        receiver
+                    )
                 )
             except ValueError as error:
                 self.report({"ERROR"}, str(error))
                 return {"CANCELLED"}
 
         preserve_source = bool(wheel_constraints)
+        wheel_target = None
+        if preserve_source:
+            try:
+                wheel_target = _source_parent_constraint_target(source)
+            except ValueError as error:
+                self.report({"ERROR"}, str(error))
+                return {"CANCELLED"}
+            if any(
+                receiver == wheel_target[0]
+                for receiver, _constraint in wheel_constraints
+            ):
+                self.report(
+                    {"ERROR"},
+                    "The source wheel's parent is also a receiver; targeting it "
+                    "would make the Copy Transforms constraint self-referential",
+                )
+                return {"CANCELLED"}
+
         copy_constraints = _copy_transforms_constraints_targeting(source)
         if copy_constraints and not preserve_source:
             if len(targets) != 1:
@@ -326,11 +372,11 @@ class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
                 target.data = target_data
             target.matrix_world = source_matrix.copy()
 
-        for constraint in wheel_constraints:
-            constraint.target = source
-            constraint.subtarget = ""
-            constraint.target_space = "WORLD"
-            constraint.owner_space = "WORLD"
+        for _receiver, constraint in wheel_constraints:
+            constraint.target = wheel_target[0]
+            constraint.subtarget = wheel_target[1]
+            constraint.target_space = wheel_target[2]
+            constraint.owner_space = wheel_target[3]
 
         if copy_constraints and not preserve_source:
             for _owner, constraint in copy_constraints:
@@ -342,7 +388,8 @@ class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
             self.report(
                 {"INFO"},
                 f"Retargeted {len(wheel_constraints)} wheel constraint(s) to "
-                "the source wheel mesh; source kept as the target",
+                f"the source wheel's parent '{wheel_target[0].name}'; "
+                "source kept in the scene",
             )
         if copy_constraints and not preserve_source:
             self.report(
