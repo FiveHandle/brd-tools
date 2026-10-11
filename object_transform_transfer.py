@@ -3,7 +3,7 @@
 bl_info = {
     "name": "Object Transform Transfer",
     "author": "BRD-Tools",
-    "version": (1, 5, 0),
+    "version": (1, 6, 0),
     "blender": (3, 6, 0),
     "location": "View3D > Sidebar > Transfer",
     "description": "Align selected objects to the active object's bounds, delete it, and update automatically",
@@ -12,7 +12,7 @@ bl_info = {
 
 import ast
 import bpy
-from mathutils import Vector
+from mathutils import Matrix, Vector
 import io
 import json
 import logging
@@ -40,6 +40,25 @@ def _bounding_box_center(obj):
     for corner in corners:
         center += corner
     return center / len(corners)
+
+
+def _offset_object_data(obj, local_offset):
+    if obj.data is None or local_offset.length_squared <= 1e-12:
+        return obj.data
+
+    transform = getattr(obj.data, "transform", None)
+    if not callable(transform):
+        raise ValueError(
+            f"Cannot compensate for the origin offset on target '{obj.name}'"
+        )
+
+    data = obj.data.copy()
+    translation = Matrix.Translation(local_offset)
+    if obj.type == "MESH":
+        data.transform(translation, shape_keys=True)
+    else:
+        data.transform(translation)
+    return data
 
 
 def _extract_version(source):
@@ -208,14 +227,20 @@ class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
 
         source_matrix = source.matrix_world.copy()
         source_center = _bounding_box_center(source)
-        source_linear = source_matrix.to_3x3()
+        target_updates = []
         for target in targets:
-            target_matrix = source_matrix.copy()
-            target_matrix.translation = (
-                source_matrix.translation
-                + source_linear @ (source_center - _bounding_box_center(target))
-            )
-            target.matrix_world = target_matrix
+            local_offset = source_center - _bounding_box_center(target)
+            try:
+                target_data = _offset_object_data(target, local_offset)
+            except (AttributeError, TypeError, ValueError) as error:
+                self.report({"ERROR"}, str(error))
+                return {"CANCELLED"}
+            target_updates.append((target, target_data))
+
+        for target, target_data in target_updates:
+            if target_data is not target.data:
+                target.data = target_data
+            target.matrix_world = source_matrix.copy()
 
         bpy.data.objects.remove(source, do_unlink=True)
         return {"FINISHED"}

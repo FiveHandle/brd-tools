@@ -19,12 +19,12 @@ source.
    **Transfer Transform & Delete Source**.
 4. Confirm the operation.
 
-The source's rotation and scale are copied to every other selected object.
-Each target is positioned so its local bounding-box center aligns with the
-source's visible bounding-box center, compensating for differences between
-object origins. The source object is then deleted. Object data such as mesh
-geometry and materials is not transferred. Use Blender's Undo immediately
-afterward to reverse the operation.
+Each target receives the source's exact world transform, including its origin,
+location, rotation, and scale. The target's local geometry is offset as needed
+so its visible bounding-box center also aligns with the source. Geometry data
+is copied before editing, so other objects sharing it remain unchanged.
+The source object is then deleted. Materials and other object data are not
+transferred. Use Blender's Undo immediately afterward to reverse the operation.
 
 Linked objects that are not library overrides must be made local before they
 can be used as a source or target.
@@ -48,7 +48,7 @@ yet.
 GitHub Actions creates a release whenever a version tag is pushed:
 
 1. Update `bl_info["version"]` and add the release notes to `CHANGELOG.md`.
-2. Commit the changes and create a matching tag, such as `v1.5.0`.
+2. Commit the changes and create a matching tag, such as `v1.6.0`.
 3. Push the commit and tag to GitHub. The **Publish Release** workflow creates
    the GitHub release, which the add-on checks at startup.
 
