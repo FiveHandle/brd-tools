@@ -8,6 +8,15 @@ All notable project changes are documented here.
 
 - GitHub Actions workflow to validate version tags and publish GitHub releases.
 
+## [1.4.0] - 2026-10-11
+
+### Changed
+
+- Simplified automatic updates to use public GitHub releases without requiring
+  users to configure tokens.
+- Added a clear sidebar message for missing or unpublished public releases.
+- Licensed the add-on under GPL-3.0-or-later.
+
 ## [1.3.0] - 2026-10-11
 
 ### Added

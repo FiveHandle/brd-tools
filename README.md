@@ -31,24 +31,16 @@ can be used as a source or target.
 
 ## Automatic updates
 
-The add-on checks the latest stable GitHub release about 10 seconds after
-Blender starts. For this private repository, configure a fine-grained GitHub
-personal access token with **Contents: Read-only** permission for
-`fivehandle/brd-tools`:
-
-1. Open **Edit > Preferences > Add-ons** and expand **Object Transform
-   Transfer**.
-2. Enter the token in **GitHub Read-Only Token**.
-3. Publish each update as a GitHub release tagged with the same three-part
-   version as `bl_info` (for example, `v1.3.0`). The release source archive
-   must contain exactly one `object_transform_transfer.py` file.
+The add-on checks the latest stable release of the public GitHub repository
+`FiveHandle/brd-tools` about 10 seconds after Blender starts. No token or
+GitHub account is needed by users. The repository and add-on source must be
+public for this check to work.
 
 When a newer release is found, the add-on validates its tag and Python version
 before replacing its installed script. Restart Blender to load the update.
-The token is masked in the preferences UI but Blender stores it locally without
-encryption. Do not share the token or commit it to the repository. Without a
-configured token, update checks are skipped and the reason appears in the
-Transfer sidebar and Blender's system console.
+Update status appears in the Transfer sidebar and Blender's system console. A
+404 means the repository is not publicly accessible or no GitHub release has
+been published yet.
 
 ### Publish a release
 
@@ -59,6 +51,9 @@ GitHub Actions creates a release whenever a version tag is pushed:
 3. Push the commit and tag to GitHub. The **Publish Release** workflow creates
    the GitHub release, which the add-on checks at startup.
 
-For this private repository, each update recipient needs GitHub read access to
-the repository and their own fine-grained token. Never distribute your own
-token.
+Release archives must contain exactly one `object_transform_transfer.py` file.
+
+## License
+
+This add-on is distributed under the GNU General Public License, version 3 or
+later. See [LICENSE](./LICENSE) for the full license text.

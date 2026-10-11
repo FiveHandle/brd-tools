@@ -1,16 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 bl_info = {
     "name": "Object Transform Transfer",
     "author": "BRD-Tools",
-    "version": (1, 3, 0),
+    "version": (1, 4, 0),
     "blender": (3, 6, 0),
     "location": "View3D > Sidebar > Transfer",
-    "description": "Align selected objects to the active object's bounds, delete it, and check for updates",
+    "description": "Align selected objects to the active object's bounds, delete it, and update automatically",
     "category": "Object",
 }
 
 import ast
 import bpy
-from bpy.props import StringProperty
 from mathutils import Vector
 import io
 import json
@@ -24,7 +25,7 @@ import urllib.request
 import zipfile
 
 
-_REPOSITORY = "fivehandle/brd-tools"
+_REPOSITORY = "FiveHandle/brd-tools"
 _RELEASE_API = f"https://api.github.com/repos/{_REPOSITORY}/releases/latest"
 _ADDON_FILENAME = "object_transform_transfer.py"
 _MAX_ARCHIVE_BYTES = 20 * 1024 * 1024
@@ -39,11 +40,6 @@ def _bounding_box_center(obj):
     for corner in corners:
         center += corner
     return center / len(corners)
-
-
-def _get_addon_preferences():
-    addon = bpy.context.preferences.addons.get(__name__)
-    return addon.preferences if addon else None
 
 
 def _extract_version(source):
@@ -65,12 +61,11 @@ def _extract_version(source):
     raise ValueError("The release add-on has no valid three-part bl_info version")
 
 
-def _read_url(url, token):
+def _read_url(url):
     request = urllib.request.Request(
         url,
         headers={
             "Accept": "application/vnd.github+json",
-            "Authorization": f"Bearer {token}",
             "X-GitHub-Api-Version": "2022-11-28",
             "User-Agent": "Object-Transform-Transfer-Updater",
         },
@@ -82,8 +77,8 @@ def _read_url(url, token):
     return data
 
 
-def _install_latest_release(token):
-    release = json.loads(_read_url(_RELEASE_API, token))
+def _install_latest_release():
+    release = json.loads(_read_url(_RELEASE_API))
     tag = release.get("tag_name", "")
     match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", tag)
     if not match:
@@ -99,7 +94,7 @@ def _install_latest_release(token):
     ):
         raise ValueError("The GitHub release does not have a valid repository archive URL")
 
-    with zipfile.ZipFile(io.BytesIO(_read_url(archive_url, token))) as archive:
+    with zipfile.ZipFile(io.BytesIO(_read_url(archive_url))) as archive:
         members = [
             name
             for name in archive.namelist()
@@ -142,17 +137,18 @@ def _install_latest_release(token):
 
 def _check_for_update():
     global _UPDATE_STATUS
-    preferences = _get_addon_preferences()
-    token = preferences.github_token.strip() if preferences else ""
-    if not token:
-        _UPDATE_STATUS = "Add a read-only GitHub token in add-on preferences to enable updates."
-        _LOGGER.warning(_UPDATE_STATUS)
-        return None
-
     _UPDATE_STATUS = "Checking GitHub for updates..."
     try:
-        _UPDATE_STATUS = _install_latest_release(token)
+        _UPDATE_STATUS = _install_latest_release()
         _LOGGER.info(_UPDATE_STATUS)
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            _UPDATE_STATUS = (
+                "Update unavailable (404): make the repo public and publish a release."
+            )
+        else:
+            _UPDATE_STATUS = f"Automatic update failed: GitHub HTTP {error.code}."
+        _LOGGER.error("%s (%s)", _UPDATE_STATUS, error)
     except (
         urllib.error.URLError,
         TimeoutError,
@@ -166,23 +162,6 @@ def _check_for_update():
         _UPDATE_STATUS = f"Automatic update failed: {error}"
         _LOGGER.error(_UPDATE_STATUS)
     return None
-
-
-class OBJECT_Preferences_transform_transfer(bpy.types.AddonPreferences):
-    bl_idname = __name__
-
-    github_token: StringProperty(
-        name="GitHub Read-Only Token",
-        description="Fine-grained token with Contents: Read-only access to the private add-on repository",
-        subtype="PASSWORD",
-    )
-
-    def draw(self, context):
-        layout = self.layout
-        layout.label(text=f"Private update source: {_REPOSITORY}")
-        layout.prop(self, "github_token")
-        layout.label(text="Stored in Blender preferences without encryption.", icon="INFO")
-        layout.label(text="Create a fine-grained token with Contents: Read-only access.")
 
 
 class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
@@ -259,7 +238,6 @@ class VIEW3D_PT_object_transform_transfer(bpy.types.Panel):
 
 
 classes = (
-    OBJECT_Preferences_transform_transfer,
     OBJECT_OT_transfer_transform_delete_source,
     VIEW3D_PT_object_transform_transfer,
 )
