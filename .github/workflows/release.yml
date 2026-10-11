@@ -1,0 +1,52 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Validate release tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import ast
+          import os
+          import re
+          from pathlib import Path
+
+          tag = os.environ["RELEASE_TAG"]
+          match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", tag)
+          if not match:
+              raise SystemExit(f"Invalid release tag: {tag}")
+
+          module = ast.parse(Path("object_transform_transfer.py").read_text(encoding="utf-8"))
+          for node in module.body:
+              if isinstance(node, ast.Assign) and any(
+                  isinstance(target, ast.Name) and target.id == "bl_info"
+                  for target in node.targets
+              ):
+                  version = ast.literal_eval(node.value)["version"]
+                  break
+          else:
+              raise SystemExit("bl_info was not found")
+
+          if tuple(map(int, match.groups())) != tuple(version):
+              raise SystemExit(f"Tag {tag} does not match add-on version {version}")
+          PY
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" --generate-notes

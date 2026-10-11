@@ -1,0 +1,40 @@
+# Changelog
+
+All notable project changes are documented here.
+
+## [Unreleased]
+
+### Added
+
+- GitHub Actions workflow to validate version tags and publish GitHub releases.
+
+## [1.3.0] - 2026-10-11
+
+### Added
+
+- Startup check for the latest private GitHub release, using a locally
+  configured read-only token.
+- Release archive and version validation before updating the installed add-on.
+- Update status in the Transfer sidebar and setup instructions.
+
+## [1.2.0] - 2026-10-11
+
+### Changed
+
+- Compensated for differing object origins by aligning target bounding-box
+  centers with the source's visible bounding-box center.
+
+## [1.1.0] - 2026-10-11
+
+### Changed
+
+- Moved the tool into its own **Transfer** tab in the 3D View sidebar.
+
+## [1.0.0] - 2026-10-11
+
+### Added
+
+- Blender add-on operator to copy the active object's world transform to all
+  other selected objects and delete the active source.
+- Confirmation prompt and undo support for the destructive operation.
+- Sidebar panel and installation/use instructions.
