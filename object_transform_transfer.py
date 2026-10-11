@@ -3,10 +3,10 @@
 bl_info = {
     "name": "Object Transform Transfer",
     "author": "BRD-Tools",
-    "version": (1, 9, 0),
+    "version": (1, 10, 0),
     "blender": (3, 6, 0),
     "location": "View3D > Sidebar > Transfer",
-    "description": "Transfer the active object's transform and align target geometry centers",
+    "description": "Transfer transforms, align geometry centers, and retarget Copy Transforms constraints",
     "category": "Object",
 }
 
@@ -60,6 +60,28 @@ def _offset_object_data(obj, local_offset):
     else:
         data.transform(translation)
     return data
+
+
+def _copy_transforms_constraints_targeting(source):
+    matches = []
+    for owner in bpy.data.objects:
+        if owner == source:
+            continue
+
+        constraint_sets = [owner.constraints]
+        if owner.pose is not None:
+            constraint_sets.extend(
+                pose_bone.constraints for pose_bone in owner.pose.bones
+            )
+
+        for constraints in constraint_sets:
+            matches.extend(
+                (owner, constraint)
+                for constraint in constraints
+                if constraint.type == "COPY_TRANSFORMS"
+                and constraint.target == source
+            )
+    return matches
 
 
 def _extract_version(source):
@@ -226,6 +248,37 @@ class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
             )
             return {"CANCELLED"}
 
+        copy_constraints = _copy_transforms_constraints_targeting(source)
+        if copy_constraints:
+            if len(targets) != 1:
+                self.report(
+                    {"ERROR"},
+                    "Select exactly one receiver to retarget Copy Transforms constraints",
+                )
+                return {"CANCELLED"}
+
+            receiver = targets[0]
+            if any(owner == receiver for owner, _constraint in copy_constraints):
+                self.report(
+                    {"ERROR"},
+                    "The receiver has a Copy Transforms constraint targeting the source; "
+                    "retargeting it would make the constraint target itself",
+                )
+                return {"CANCELLED"}
+
+            linked_constraint_owners = [
+                owner
+                for owner, _constraint in copy_constraints
+                if owner.library is not None and owner.override_library is None
+            ]
+            if linked_constraint_owners:
+                names = ", ".join(owner.name for owner in linked_constraint_owners)
+                self.report(
+                    {"ERROR"},
+                    f"Cannot retarget constraints on linked objects: {names}",
+                )
+                return {"CANCELLED"}
+
         source_matrix = source.matrix_world.copy()
         source_center = _bounding_box_center(source)
         target_updates = []
@@ -243,7 +296,17 @@ class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
                 target.data = target_data
             target.matrix_world = source_matrix.copy()
 
+        if copy_constraints:
+            receiver = targets[0]
+            for _owner, constraint in copy_constraints:
+                constraint.target = receiver
+
         bpy.data.objects.remove(source, do_unlink=True)
+        if copy_constraints:
+            self.report(
+                {"INFO"},
+                f"Retargeted {len(copy_constraints)} Copy Transforms constraint(s)",
+            )
         return {"FINISHED"}
 
 

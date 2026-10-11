@@ -8,6 +8,15 @@ All notable project changes are documented here.
 
 - GitHub Actions workflow to validate version tags and publish GitHub releases.
 
+## [1.10.0] - 2026-10-11
+
+### Added
+
+- Retarget scene and pose-bone Copy Transforms constraints from the deleted
+  source to the single receiving object.
+- Cancel safely when multiple receivers, self-targeting, or linked constraint
+  owners make retargeting ambiguous or unsafe.
+
 ## [1.9.0] - 2026-10-11
 
 ### Changed
