@@ -8,6 +8,23 @@ All notable project changes are documented here.
 
 - GitHub Actions workflow to validate version tags and publish GitHub releases.
 
+## [1.12.0] - 2026-10-11
+
+### Changed
+
+- Preserve and reapply each receiving Sollumz wheel's armature Target and bone
+  Subtarget after transfer, even when no other scene constraint targets the
+  deleted source.
+
+## [1.11.0] - 2026-10-11
+
+### Changed
+
+- Retarget Copy Transforms constraints to a receiving Sollumz wheel's armature
+  Target and wheel-bone Subtarget when the receiver has that configuration.
+- Keep ordinary object receivers as the fallback target and reject ambiguous
+  or invalid receiver armature/bone settings.
+
 ## [1.10.0] - 2026-10-11
 
 ### Added

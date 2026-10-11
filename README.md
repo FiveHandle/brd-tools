@@ -32,9 +32,12 @@ Use Blender's Undo immediately afterward to reverse the operation.
 
 Any object or pose-bone **Copy Transforms** constraints elsewhere in the scene
 that target the deleted source are redirected to the single receiving object.
-If such constraints exist, select exactly one receiver. A receiver that owns
-one of those constraints, or linked constraint owners, is rejected to avoid a
-self-target or editing read-only data.
+For a Sollumz wheel receiver, its own Copy Transforms armature Target and bone
+Subtarget are preserved from that receiver's rig setup, and scene constraints
+being retargeted use the same armature/bone pair. This keeps the surviving
+wheel bound to the receiving car's rig. If scene constraints reference the
+source, select exactly one receiver. A replacement that would make a
+constraint target its own owner, or linked constraint owners, is rejected.
 
 Linked objects that are not library overrides must be made local before they
 can be used as a source or target.
@@ -58,7 +61,7 @@ yet.
 GitHub Actions creates a release whenever a version tag is pushed:
 
 1. Update `bl_info["version"]` and add the release notes to `CHANGELOG.md`.
-2. Commit the changes and create a matching tag, such as `v1.10.0`.
+2. Commit the changes and create a matching tag, such as `v1.12.0`.
 3. Push the commit and tag to GitHub. The **Publish Release** workflow creates
    the GitHub release, which the add-on checks at startup.
 
