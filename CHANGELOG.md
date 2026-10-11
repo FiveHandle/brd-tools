@@ -8,6 +8,15 @@ All notable project changes are documented here.
 
 - GitHub Actions workflow to validate version tags and publish GitHub releases.
 
+## [1.18.0] - 2026-10-11
+
+### Changed
+
+- Reverse mesh replacement direction: copy the non-active receiver's mesh data
+  into the active source object, keeping both objects and preserving their
+  transforms, constraints, and hierarchy.
+- Remove the active source's old mesh datablock only when it is unused.
+
 ## [1.17.0] - 2026-10-11
 
 ### Changed

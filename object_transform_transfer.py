@@ -3,7 +3,7 @@
 bl_info = {
     "name": "Object Transform Transfer",
     "author": "BRD-Tools",
-    "version": (1, 17, 0),
+    "version": (1, 18, 0),
     "blender": (3, 6, 0),
     "location": "View3D > Sidebar > Transfer",
     "description": "Transfer transforms, align geometry centers, and retarget Copy Transforms constraints",
@@ -216,7 +216,7 @@ def _check_for_update():
 
 
 class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
-    """Replace target mesh data or transfer transforms, then delete the source"""
+    """Replace active mesh data from a receiver or transfer transforms"""
 
     bl_idname = "object.transfer_transform_delete_source"
     bl_label = "Transfer Transform"
@@ -257,16 +257,37 @@ class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
             )
             return {"CANCELLED"}
 
-        mesh_replacement = source.type == "MESH"
-        if mesh_replacement and any(target.type != "MESH" for target in targets):
+        if source.type == "MESH":
+            if len(targets) != 1 or targets[0].type != "MESH":
+                self.report(
+                    {"ERROR"},
+                    "Mesh replacement requires exactly one non-active mesh receiver",
+                )
+                return {"CANCELLED"}
+            if targets[0].data is None:
+                self.report({"ERROR"}, "The mesh receiver has no mesh data")
+                return {"CANCELLED"}
+
+            old_mesh_data = source.data
+            try:
+                replacement_mesh_data = targets[0].data.copy()
+            except (AttributeError, RuntimeError, TypeError, ValueError) as error:
+                self.report({"ERROR"}, f"Could not copy receiver mesh data: {error}")
+                return {"CANCELLED"}
+
+            try:
+                source.data = replacement_mesh_data
+            except (AttributeError, RuntimeError, TypeError, ValueError) as error:
+                _remove_unused_mesh_data(replacement_mesh_data)
+                self.report({"ERROR"}, f"Could not assign receiver mesh data: {error}")
+                return {"CANCELLED"}
+
+            _remove_unused_mesh_data(old_mesh_data)
             self.report(
-                {"ERROR"},
-                "Mesh replacement requires mesh receivers only",
+                {"INFO"},
+                "Copied receiver mesh data onto the active source object",
             )
-            return {"CANCELLED"}
-        if mesh_replacement and source.data is None:
-            self.report({"ERROR"}, "The active source mesh has no mesh data")
-            return {"CANCELLED"}
+            return {"FINISHED"}
 
         copy_constraints = _copy_transforms_constraints_targeting(source)
         if copy_constraints:
@@ -299,57 +320,28 @@ class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
                 )
                 return {"CANCELLED"}
 
-        mesh_updates = []
+        source_matrix = source.matrix_world.copy()
+        source_center = _bounding_box_center(source)
         target_updates = []
-        if mesh_replacement:
+        for target in targets:
+            local_offset = source_center - _bounding_box_center(target)
             try:
-                for target in targets:
-                    mesh_updates.append((target, target.data, source.data.copy()))
-            except (AttributeError, RuntimeError, TypeError) as error:
-                for _target, _old_data, mesh_data in mesh_updates:
-                    _remove_unused_mesh_data(mesh_data)
-                self.report({"ERROR"}, f"Could not copy source mesh data: {error}")
+                target_data = _offset_object_data(target, local_offset)
+            except (AttributeError, TypeError, ValueError) as error:
+                self.report({"ERROR"}, str(error))
                 return {"CANCELLED"}
-        else:
-            source_matrix = source.matrix_world.copy()
-            source_center = _bounding_box_center(source)
-            for target in targets:
-                local_offset = source_center - _bounding_box_center(target)
-                try:
-                    target_data = _offset_object_data(target, local_offset)
-                except (AttributeError, TypeError, ValueError) as error:
-                    self.report({"ERROR"}, str(error))
-                    return {"CANCELLED"}
-                target_updates.append((target, target_data))
+            target_updates.append((target, target_data))
 
-        if mesh_replacement:
-            for target, _old_data, mesh_data in mesh_updates:
-                target.data = mesh_data
-        else:
-            for target, target_data in target_updates:
-                if target_data is not target.data:
-                    target.data = target_data
-                target.matrix_world = source_matrix.copy()
+        for target, target_data in target_updates:
+            if target_data is not target.data:
+                target.data = target_data
+            target.matrix_world = source_matrix.copy()
 
         if copy_constraints:
             for _owner, constraint in copy_constraints:
                 constraint.target = targets[0]
 
-        mesh_data_to_cleanup = [source.data] if mesh_replacement else []
-        if mesh_replacement:
-            for _target, old_data, _new_data in mesh_updates:
-                if old_data is not None and not any(
-                    old_data is existing for existing in mesh_data_to_cleanup
-                ):
-                    mesh_data_to_cleanup.append(old_data)
         bpy.data.objects.remove(source, do_unlink=True)
-        for mesh_data in mesh_data_to_cleanup:
-            _remove_unused_mesh_data(mesh_data)
-        if mesh_replacement:
-            self.report(
-                {"INFO"},
-                f"Replaced mesh data on {len(mesh_updates)} receiver(s)",
-            )
         if copy_constraints:
             self.report(
                 {"INFO"},
@@ -394,7 +386,8 @@ class VIEW3D_PT_object_transform_transfer(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         layout.label(text="Active object is the source.")
-        layout.label(text="Meshes: replace data. Other types: transfer transform.")
+        layout.label(text="Mesh: active takes receiver mesh; keeps both objects.")
+        layout.label(text="Other types: transfer transform; delete active source.")
         layout.operator(OBJECT_OT_transfer_transform_delete_source.bl_idname)
         pie_button = layout.operator(
             "wm.call_menu_pie",
