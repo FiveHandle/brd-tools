@@ -38,16 +38,17 @@ public for this check to work.
 
 When a newer release is found, the add-on validates its tag and Python version
 before replacing its installed script. Restart Blender to load the update.
-Update status appears in the Transfer sidebar and Blender's system console. A
-404 means the repository is not publicly accessible or no GitHub release has
-been published yet.
+To check immediately, click **Check for Updates** in the Transfer sidebar.
+Update status appears there and in Blender's system console. A 404 means the
+repository is not publicly accessible or no GitHub release has been published
+yet.
 
 ### Publish a release
 
 GitHub Actions creates a release whenever a version tag is pushed:
 
 1. Update `bl_info["version"]` and add the release notes to `CHANGELOG.md`.
-2. Commit the changes and create a matching tag, such as `v1.4.0`.
+2. Commit the changes and create a matching tag, such as `v1.5.0`.
 3. Push the commit and tag to GitHub. The **Publish Release** workflow creates
    the GitHub release, which the add-on checks at startup.
 

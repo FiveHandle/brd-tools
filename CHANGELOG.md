@@ -8,6 +8,12 @@ All notable project changes are documented here.
 
 - GitHub Actions workflow to validate version tags and publish GitHub releases.
 
+## [1.5.0] - 2026-10-11
+
+### Added
+
+- Manual **Check for Updates** button in the Transfer sidebar.
+
 ## [1.4.0] - 2026-10-11
 
 ### Changed

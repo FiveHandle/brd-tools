@@ -3,7 +3,7 @@
 bl_info = {
     "name": "Object Transform Transfer",
     "author": "BRD-Tools",
-    "version": (1, 4, 0),
+    "version": (1, 5, 0),
     "blender": (3, 6, 0),
     "location": "View3D > Sidebar > Transfer",
     "description": "Align selected objects to the active object's bounds, delete it, and update automatically",
@@ -221,6 +221,22 @@ class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class OBJECT_OT_check_for_updates(bpy.types.Operator):
+    bl_idname = "object_transform_transfer.check_for_updates"
+    bl_label = "Check for Updates"
+    bl_description = "Check GitHub now and install a newer release if available"
+
+    def execute(self, context):
+        _check_for_update()
+        report_type = (
+            {"ERROR"}
+            if _UPDATE_STATUS.startswith(("Automatic update failed", "Update unavailable"))
+            else {"INFO"}
+        )
+        self.report(report_type, _UPDATE_STATUS)
+        return {"FINISHED"}
+
+
 class VIEW3D_PT_object_transform_transfer(bpy.types.Panel):
     bl_label = "Object Transform Transfer"
     bl_idname = "VIEW3D_PT_object_transform_transfer"
@@ -234,11 +250,16 @@ class VIEW3D_PT_object_transform_transfer(bpy.types.Panel):
         layout.label(text="Align visible bounds, then delete source.")
         layout.operator(OBJECT_OT_transfer_transform_delete_source.bl_idname)
         layout.separator()
+        layout.operator(
+            OBJECT_OT_check_for_updates.bl_idname,
+            icon="FILE_REFRESH",
+        )
         layout.label(text=_UPDATE_STATUS, icon="INFO")
 
 
 classes = (
     OBJECT_OT_transfer_transform_delete_source,
+    OBJECT_OT_check_for_updates,
     VIEW3D_PT_object_transform_transfer,
 )
 
