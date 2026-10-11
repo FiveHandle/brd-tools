@@ -3,7 +3,7 @@
 bl_info = {
     "name": "Object Transform Transfer",
     "author": "BRD-Tools",
-    "version": (1, 15, 0),
+    "version": (1, 16, 0),
     "blender": (3, 6, 0),
     "location": "View3D > Sidebar > Transfer",
     "description": "Transfer transforms, align geometry centers, and retarget Copy Transforms constraints",
@@ -118,7 +118,35 @@ def _source_hierarchy_constraint_target(source):
             "above it in the hierarchy"
         )
 
-    return target, "", "WORLD", "WORLD"
+    bone_names = {
+        constraint.subtarget
+        for constraint in source.constraints
+        if constraint.type == "COPY_TRANSFORMS"
+        and constraint.target is not None
+        and constraint.target.type == "ARMATURE"
+        and constraint.subtarget.startswith("wheel_")
+    }
+    if source.parent_type == "BONE" and source.parent_bone:
+        bone_names.add(source.parent_bone)
+    if len(bone_names) != 1:
+        raise ValueError(
+            "Could not determine a unique wheel bone from the active source; "
+            "give it one Copy Transforms wheel-bone constraint or bone parent"
+        )
+
+    subtarget = bone_names.pop()
+    if target.type != "ARMATURE":
+        raise ValueError(
+            f"The source wheel's hierarchy target '{target.name}' is not an "
+            "armature and cannot use a Bone/Subtarget"
+        )
+    if target.data.bones.get(subtarget) is None:
+        raise ValueError(
+            f"The detected source wheel bone '{subtarget}' does not exist in "
+            f"hierarchy target armature '{target.name}'"
+        )
+
+    return target, subtarget, "POSE", "LOCAL"
 
 
 def _extract_version(source):
@@ -382,7 +410,7 @@ class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
             self.report(
                 {"INFO"},
                 f"Retargeted {len(wheel_constraints)} wheel constraint(s) to "
-                f"the source wheel's parent '{wheel_target[0].name}'; "
+                f"'{wheel_target[0].name}' bone '{wheel_target[1]}'; "
                 "source kept in the scene",
             )
         if copy_constraints and not preserve_source:

@@ -33,11 +33,12 @@ to reverse the operation.
 Any object or pose-bone **Copy Transforms** constraints elsewhere in the scene
 that target the deleted source are redirected to the single receiving object.
 For a Sollumz wheel receiver with a Copy Transforms constraint targeting a
-`wheel_` bone, the constraint targets the object one level above the active
-source wheel's current parent. The Bone/Subtarget is cleared and the constraint
-uses World spaces. The active source is kept in the scene for this wheel
-workflow. If that higher-level parent does not exist, the transfer is canceled
-with an error.
+`wheel_` bone, the constraint targets the armature one level above the active
+source wheel's current parent. Its Bone/Subtarget is detected from the source
+wheel's own Copy Transforms wheel-bone constraint or bone parent, then checked
+against the target armature. The constraint uses Pose/Local spaces, and the
+active source is kept in the scene. If the hierarchy or a unique matching bone
+cannot be determined, the transfer is canceled with an error.
 Ordinary transfers delete the source. If scene constraints reference a source
 being deleted, select exactly one receiver. A replacement that would make a
 constraint target its own owner, or linked constraint owners, is rejected.
@@ -64,7 +65,7 @@ yet.
 GitHub Actions creates a release whenever a version tag is pushed:
 
 1. Update `bl_info["version"]` and add the release notes to `CHANGELOG.md`.
-2. Commit the changes and create a matching tag, such as `v1.15.0`.
+2. Commit the changes and create a matching tag, such as `v1.16.0`.
 3. Push the commit and tag to GitHub. The **Publish Release** workflow creates
    the GitHub release, which the add-on checks at startup.
 

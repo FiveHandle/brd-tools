@@ -8,13 +8,20 @@ All notable project changes are documented here.
 
 - GitHub Actions workflow to validate version tags and publish GitHub releases.
 
+## [1.16.0] - 2026-10-11
+
+### Changed
+
+- Detect the wheel Bone/Subtarget from the active source wheel's Copy Transforms
+  constraint or bone parent, validate it on the hierarchy Target armature, and
+  use Pose/Local spaces.
+
 ## [1.15.0] - 2026-10-11
 
 ### Changed
 
 - Use the object one level above the active source wheel's parent as the Copy
   Transforms Target, rather than the intermediate `.mesh` object.
-- Clear the Bone/Subtarget and use World spaces for that hierarchy target.
 
 ## [1.14.0] - 2026-10-11
 
