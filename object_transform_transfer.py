@@ -3,7 +3,7 @@
 bl_info = {
     "name": "Object Transform Transfer",
     "author": "BRD-Tools",
-    "version": (1, 16, 0),
+    "version": (1, 17, 0),
     "blender": (3, 6, 0),
     "location": "View3D > Sidebar > Transfer",
     "description": "Transfer transforms, align geometry centers, and retarget Copy Transforms constraints",
@@ -84,69 +84,13 @@ def _copy_transforms_constraints_targeting(source):
     return matches
 
 
-def _receiver_copy_transforms_wheel_constraints(receiver):
-    constraints = [
-        constraint
-        for constraint in receiver.constraints
-        if constraint.type == "COPY_TRANSFORMS"
-        and constraint.target is not None
-        and constraint.target.type == "ARMATURE"
-        and constraint.subtarget.startswith("wheel_")
-    ]
-    for constraint in constraints:
-        if constraint.target.data.bones.get(constraint.subtarget) is None:
-            raise ValueError(
-                f"The receiver's Copy Transforms wheel bone "
-                f"'{constraint.subtarget}' does not exist in armature "
-                f"'{constraint.target.name}'"
-            )
-    return constraints
-
-
-def _source_hierarchy_constraint_target(source):
-    parent = source.parent
-    if parent is None:
-        raise ValueError(
-            "The active source wheel has no parent; it needs a parent hierarchy "
-            "to determine the wheel Target"
-        )
-
-    target = parent.parent
-    if target is None:
-        raise ValueError(
-            f"The active source wheel's parent '{parent.name}' has no parent "
-            "above it in the hierarchy"
-        )
-
-    bone_names = {
-        constraint.subtarget
-        for constraint in source.constraints
-        if constraint.type == "COPY_TRANSFORMS"
-        and constraint.target is not None
-        and constraint.target.type == "ARMATURE"
-        and constraint.subtarget.startswith("wheel_")
-    }
-    if source.parent_type == "BONE" and source.parent_bone:
-        bone_names.add(source.parent_bone)
-    if len(bone_names) != 1:
-        raise ValueError(
-            "Could not determine a unique wheel bone from the active source; "
-            "give it one Copy Transforms wheel-bone constraint or bone parent"
-        )
-
-    subtarget = bone_names.pop()
-    if target.type != "ARMATURE":
-        raise ValueError(
-            f"The source wheel's hierarchy target '{target.name}' is not an "
-            "armature and cannot use a Bone/Subtarget"
-        )
-    if target.data.bones.get(subtarget) is None:
-        raise ValueError(
-            f"The detected source wheel bone '{subtarget}' does not exist in "
-            f"hierarchy target armature '{target.name}'"
-        )
-
-    return target, subtarget, "POSE", "LOCAL"
+def _remove_unused_mesh_data(mesh_data):
+    if (
+        mesh_data is not None
+        and mesh_data.users == 0
+        and (mesh_data.library is None or mesh_data.override_library is not None)
+    ):
+        bpy.data.meshes.remove(mesh_data)
 
 
 def _extract_version(source):
@@ -272,7 +216,7 @@ def _check_for_update():
 
 
 class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
-    """Copy the active transform and align target bounding-box centers, then delete the source"""
+    """Replace target mesh data or transfer transforms, then delete the source"""
 
     bl_idname = "object.transfer_transform_delete_source"
     bl_label = "Transfer Transform"
@@ -313,41 +257,19 @@ class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
             )
             return {"CANCELLED"}
 
-        wheel_constraints = []
-        for receiver in targets:
-            try:
-                wheel_constraints.extend(
-                    (receiver, constraint)
-                    for constraint in _receiver_copy_transforms_wheel_constraints(
-                        receiver
-                    )
-                )
-            except ValueError as error:
-                self.report({"ERROR"}, str(error))
-                return {"CANCELLED"}
-
-        preserve_source = bool(wheel_constraints)
-        wheel_target = None
-        if preserve_source:
-            try:
-                wheel_target = _source_hierarchy_constraint_target(source)
-            except ValueError as error:
-                self.report({"ERROR"}, str(error))
-                return {"CANCELLED"}
-            if any(
-                receiver == wheel_target[0]
-                for receiver, _constraint in wheel_constraints
-            ):
-                self.report(
-                    {"ERROR"},
-                    "The source wheel's parent hierarchy target is also a receiver; "
-                    "targeting it would make the Copy Transforms constraint "
-                    "self-referential",
-                )
-                return {"CANCELLED"}
+        mesh_replacement = source.type == "MESH"
+        if mesh_replacement and any(target.type != "MESH" for target in targets):
+            self.report(
+                {"ERROR"},
+                "Mesh replacement requires mesh receivers only",
+            )
+            return {"CANCELLED"}
+        if mesh_replacement and source.data is None:
+            self.report({"ERROR"}, "The active source mesh has no mesh data")
+            return {"CANCELLED"}
 
         copy_constraints = _copy_transforms_constraints_targeting(source)
-        if copy_constraints and not preserve_source:
+        if copy_constraints:
             if len(targets) != 1:
                 self.report(
                     {"ERROR"},
@@ -377,43 +299,58 @@ class OBJECT_OT_transfer_transform_delete_source(bpy.types.Operator):
                 )
                 return {"CANCELLED"}
 
-        source_matrix = source.matrix_world.copy()
-        source_center = _bounding_box_center(source)
+        mesh_updates = []
         target_updates = []
-        for target in targets:
-            local_offset = source_center - _bounding_box_center(target)
+        if mesh_replacement:
             try:
-                target_data = _offset_object_data(target, local_offset)
-            except (AttributeError, TypeError, ValueError) as error:
-                self.report({"ERROR"}, str(error))
+                for target in targets:
+                    mesh_updates.append((target, target.data, source.data.copy()))
+            except (AttributeError, RuntimeError, TypeError) as error:
+                for _target, _old_data, mesh_data in mesh_updates:
+                    _remove_unused_mesh_data(mesh_data)
+                self.report({"ERROR"}, f"Could not copy source mesh data: {error}")
                 return {"CANCELLED"}
-            target_updates.append((target, target_data))
+        else:
+            source_matrix = source.matrix_world.copy()
+            source_center = _bounding_box_center(source)
+            for target in targets:
+                local_offset = source_center - _bounding_box_center(target)
+                try:
+                    target_data = _offset_object_data(target, local_offset)
+                except (AttributeError, TypeError, ValueError) as error:
+                    self.report({"ERROR"}, str(error))
+                    return {"CANCELLED"}
+                target_updates.append((target, target_data))
 
-        for target, target_data in target_updates:
-            if target_data is not target.data:
-                target.data = target_data
-            target.matrix_world = source_matrix.copy()
+        if mesh_replacement:
+            for target, _old_data, mesh_data in mesh_updates:
+                target.data = mesh_data
+        else:
+            for target, target_data in target_updates:
+                if target_data is not target.data:
+                    target.data = target_data
+                target.matrix_world = source_matrix.copy()
 
-        for _receiver, constraint in wheel_constraints:
-            constraint.target = wheel_target[0]
-            constraint.subtarget = wheel_target[1]
-            constraint.target_space = wheel_target[2]
-            constraint.owner_space = wheel_target[3]
-
-        if copy_constraints and not preserve_source:
+        if copy_constraints:
             for _owner, constraint in copy_constraints:
                 constraint.target = targets[0]
 
-        if not preserve_source:
-            bpy.data.objects.remove(source, do_unlink=True)
-        elif wheel_constraints:
+        mesh_data_to_cleanup = [source.data] if mesh_replacement else []
+        if mesh_replacement:
+            for _target, old_data, _new_data in mesh_updates:
+                if old_data is not None and not any(
+                    old_data is existing for existing in mesh_data_to_cleanup
+                ):
+                    mesh_data_to_cleanup.append(old_data)
+        bpy.data.objects.remove(source, do_unlink=True)
+        for mesh_data in mesh_data_to_cleanup:
+            _remove_unused_mesh_data(mesh_data)
+        if mesh_replacement:
             self.report(
                 {"INFO"},
-                f"Retargeted {len(wheel_constraints)} wheel constraint(s) to "
-                f"'{wheel_target[0].name}' bone '{wheel_target[1]}'; "
-                "source kept in the scene",
+                f"Replaced mesh data on {len(mesh_updates)} receiver(s)",
             )
-        if copy_constraints and not preserve_source:
+        if copy_constraints:
             self.report(
                 {"INFO"},
                 f"Retargeted {len(copy_constraints)} Copy Transforms constraint(s)",
@@ -457,7 +394,7 @@ class VIEW3D_PT_object_transform_transfer(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         layout.label(text="Active object is the source.")
-        layout.label(text="Align target bounds; apply source transform.")
+        layout.label(text="Meshes: replace data. Other types: transfer transform.")
         layout.operator(OBJECT_OT_transfer_transform_delete_source.bl_idname)
         pie_button = layout.operator(
             "wm.call_menu_pie",

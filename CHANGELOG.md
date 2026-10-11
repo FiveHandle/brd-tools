@@ -8,6 +8,16 @@ All notable project changes are documented here.
 
 - GitHub Actions workflow to validate version tags and publish GitHub releases.
 
+## [1.17.0] - 2026-10-11
+
+### Changed
+
+- For mesh-to-mesh transfers, copy source mesh data onto each receiver while
+  preserving receiver objects, transforms, hierarchy, constraints, and
+  modifiers.
+- Remove old receiver/source mesh datablocks only when unused, then delete the
+  active source object.
+
 ## [1.16.0] - 2026-10-11
 
 ### Changed
